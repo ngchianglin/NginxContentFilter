@@ -436,9 +436,10 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 goto failed;
             }
         }
-        else
+        else if(slcf->logonly)
         {//sensitive content already detected
          //just copy remaining buffer to output chain
+         //if logonly is enabled, otherwise can ignore
             if (ngx_http_ct_out_chain_append(r, ctx, 
                 cl->buf)!= NGX_OK) 
             {
@@ -723,13 +724,35 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
     }
 #endif
 
-    /* ctx->out may not output all the data */
-    rc = ngx_http_next_body_filter(r, ctx->out);
-    if (rc == NGX_ERROR) {
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, 
-                        "[Content filter]: ngx_http_ct_output "
-                        "nginx next body filter returns error"); 
-        return NGX_ERROR;
+
+    if(ctx->last)
+    {    
+
+        #if CONTF_DEBUG
+             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "[Content filter]: subs out buffer: last buffer"
+                       );
+        #endif
+
+
+        /* ctx->out may not output all the data */
+        rc = ngx_http_next_body_filter(r, ctx->out);
+        if (rc == NGX_ERROR) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, 
+                            "[Content filter]: ngx_http_ct_output "
+                            "nginx next body filter returns error"); 
+            return NGX_ERROR;   
+        }
+    }
+    else
+    {
+        #if CONTF_DEBUG
+             ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "[Content filter]: subs out buffer: not last return NGX_OK"
+                       );
+        #endif
+
+        return NGX_OK;
     }
 
 #if CONTF_DEBUG
@@ -1035,56 +1058,71 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
     {
         return match_count; 
     }
-
-    src = ctx->line_in;
-    input.data = src->pos; 
-    input.len = ngx_buf_size(src);
     
+    src = ctx->line_in;
+
     if(!ctx->matched)
     {//this block will not run if sensitive content is already detected
         
         pairs = (blk_pair_t *) ctx->blk_pairs->elts;
         for (i = 0; i < ctx->blk_pairs->nelts; i++) {
-
+            
             pair = &pairs[i];
-            /* regex matching */
+            input.data = src->pos; 
+            input.len = ngx_buf_size(src);
+          
+            while(input.len > 0) 
+            {
+            
+                /* regex matching */
+                #if (NGX_PCRE)
 
-            #if (NGX_PCRE)
-
-            pair->ncaptures = (NGX_HTTP_MAX_CAPTURES + 1) * 3;
-            pair->captures = ngx_pcalloc(r->pool, pair->ncaptures * sizeof(int));
-
-            count = ngx_regex_exec(pair->match_regex, &input, pair->captures, pair->ncaptures);
-            if (count >= 0) {
-                /* Regex matches */
-                match_count += count;
-                /*
-                 count is for current line only. To track matches in previous lines
-                 pair->matched is used. 
-                */
-                pair->matched++; 
+                pair->ncaptures = (NGX_HTTP_MAX_CAPTURES + 1) * 3;
+                pair->captures = ngx_pcalloc(r->pool, pair->ncaptures * sizeof(int));
                 
-                if((count >= pair->occurence) || (pair->matched >= pair->occurence))
-                {
-                    ctx->matched++;                    
-                    break; 
-                }                
+                count = ngx_regex_exec(pair->match_regex, &input, pair->captures, pair->ncaptures);
+                if (count >= 0) {
+                    /* Regex matches */
+                    match_count += count;
+                    
+                    /*
+                      To track  previous matches pair->matched is used. 
+                    */
+                    pair->matched++; 
+                    
+                    input.data = input.data + pair->captures[1];
+                    input.len = input.len - pair->captures[1];
+                    
+                    if(pair->matched >= pair->occurence)
+                    {
+                        ctx->matched++;                    
+                        break; 
+                    }                
 
-            } else if (count == NGX_REGEX_NO_MATCHED) {
-                
-                 continue;
+                } else if (count == NGX_REGEX_NO_MATCHED) {
+                     //no match break out of while loop
+                     break;
 
-            } else {
-                
-                ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: ngx_http_ct_match"
-                                                    " regexec failed: %i", count);
-                goto failed;
-            }    
-            #endif
+                } else {
+                    
+                    ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: ngx_http_ct_match"
+                                                        " regexec failed: %i", count);
+                    goto failed;
+                }    
+                #endif
+            }
+            
+            
+            if(ctx->matched)
+            {//one of the regex pair has matched
+             //exit the for loop
+              break;
+            }
 
 
         }
     }
+    
 
     
     if (ngx_http_ct_out_chain_append(r, ctx, 
