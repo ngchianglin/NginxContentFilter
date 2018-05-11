@@ -1,4 +1,4 @@
-# NginxContentFilter
+# Nginx Content Filter Module
 An Nginx Filter Module that can filter and block sensitive content
 
 ## Introduction
@@ -23,29 +23,25 @@ The module requires PCRE library. At the time of writing, the latest version is 
 [nginx version 1.14.0](https://nginx.org/en/download.html). Refer to their respective project websites for details on how to verify the integrity of the source downloads. 
 The following shows the sha-256 hashes for the 2 source packages. 
 
->>nginx-1.14.0.tar.gz &nbsp;&nbsp;&nbsp;&nbsp; 5d15becbf69aba1fe33f8d416d97edd95ea8919ea9ac519eff9bafebb6022cb5
-
->>pcre-8.42.tar.gz &nbsp;&nbsp;&nbsp;&nbsp; 69acbc2fbdefb955d42a4c606dfde800c2885711d2979e356c0636efde9ec3b5 
+    nginx-1.14.0.tar.gz  5d15becbf69aba1fe33f8d416d97edd95ea8919ea9ac519eff9bafebb6022cb5
+    
+    pcre-8.42.tar.gz  69acbc2fbdefb955d42a4c606dfde800c2885711d2979e356c0636efde9ec3b5 
 
 Download or clone a copy of this module
 
->>git clone https://github.com/ngchianglin/NginxContentFilter.git
+    git clone https://github.com/ngchianglin/NginxContentFilter.git
 
 Extract nginx and pcre source. 
 
->> tar -zxvf nginx-1.14.0.tar.gz
-
->> tar -zxvf pcre-8.42.tar.gz
+    tar -zxvf nginx-1.14.0.tar.gz
+    tar -zxvf pcre-8.42.tar.gz
 
 Configure and compile the module
 
->>cd nginx-1.14.0
-
->>./configure --with-cc-opt="-Wextra -Wformat -Wformat-security -Wformat-y2k -fPIE -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all" --with-ld-opt="-pie -Wl,-z,relro -Wl,-z,now -Wl,--strip-all" --add-module=../NginxContentFilter  --with-pcre=../pcre-8.42 --with-pcre-opt="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all -fPIC" --with-pcre-jit
-
->>make
-
->>sudo make install
+    cd nginx-1.14.0
+    ./configure --with-cc-opt="-Wextra -Wformat -Wformat-security -Wformat-y2k -fPIE -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all" --with-ld-opt="-pie -Wl,-z,relro -Wl,-z,now -Wl,--strip-all" --add-module=../NginxContentFilter  --with-pcre=../pcre-8.42 --with-pcre-opt="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all -fPIC" --with-pcre-jit
+    make
+    sudo make install
 
 This will install nginx compiled with the content filter module into /usr/local/nginx
 Note pcre is not configured with UTF8 support enabled. 
@@ -89,21 +85,19 @@ log Alerts when matches occured. The default is "off".
 
 ## Example Configuration
 
->> location / {
->>  
->> root  /opt/www/html;  
->> index  index.html index.htm;  
->>
->> ct_filter_types text/plain application/javascript;  
->> ct_filter_logonly off;
->>
->> ct_filter S\d\d\d\d\d\d\d[A-Z] 1;  
->> ct_filter (?!.*\.\.)[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]\@[a-zA-Z0-9]+\.[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z] 2;  
->> ct_filter 8\d\d\d\d\d\d\d 2;  
->> ct_filter 9\d\d\d\d\d\d\d 2;  
->> ct_filter 机密 1;  
->>
->>}
+    location / {
+       root  /opt/www/html;  
+       index  index.html index.htm;  
+
+       ct_filter_types text/plain application/javascript;  
+       ct_filter_logonly off;
+       
+       ct_filter S\d\d\d\d\d\d\d[A-Z] 1;  
+       ct_filter (?!.*\.\.)[a-zA-Z0-9][a-zA-Z0-9._-]*[a-zA-Z0-9]\@[a-zA-Z0-9]+\.[a-zA-Z0-9][a-zA-Z0-9.-]*[a-zA-Z] 2;  
+       ct_filter 8\d\d\d\d\d\d\d 2;  
+       ct_filter 9\d\d\d\d\d\d\d 2;  
+       ct_filter 机密 1;  
+    }
 
 The above configuration specifies that content with the mimes type, text/html (default), text/plain and application/javascript 
 will be processed by the module. Log only option is explicitly set to off. This means if there are matches, a blank page will be 
@@ -134,7 +128,8 @@ Basically use it at your own risk ! Read and understand the License carefully.
 Gpg Signed commits are used for committing the source files. 
 
 > Look at the repository commits tab for the verified label for each commit, or refer to [https://www.nighthour.sg/git-gpg.html](https://www.nighthour.sg/git-gpg.html) for instructions on verifying the git commit. 
+>
+> A userful link on how to verify gpg signature is available at [https://github.com/blog/2144-gpg-signature-verification](https://github.com/blog/2144-gpg-signature-verification)
 
-> A userful link on how to verify gpg signature [https://github.com/blog/2144-gpg-signature-verification](https://github.com/blog/2144-gpg-signature-verification)
 
 
