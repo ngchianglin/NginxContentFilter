@@ -904,6 +904,13 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     ngx_str_t                  occurence_str;
     blk_pair_t                 *pair;
     ngx_http_ct_loc_conf_t   *slcf = conf;
+    
+    
+    #if !(NGX_PCRE)
+        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
+                            "[Content filter]: Error PCRE library is required !");
+        return NGX_CONF_ERROR; 
+    #endif
  
 
     if (cf->args->nelts < 2){
@@ -966,7 +973,7 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
                             "[Content filter]: ngx_http_ct_filter cannot compile regex");
         return NGX_CONF_ERROR;
     }
-    
+     
 
     return NGX_CONF_OK;
 }
@@ -1042,16 +1049,19 @@ ngx_http_ct_filter_regex_compile(blk_pair_t *pair, ngx_conf_t *cf)
 static ngx_int_t
 ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
 {
-    ngx_buf_t   *src;
+  
     ngx_log_t   *log;
     ngx_int_t    count, match_count;
-    blk_pair_t  *pairs, *pair;
+    #if (NGX_PCRE)     
+    ngx_buf_t   *src;
     ngx_uint_t   i;
+    blk_pair_t  *pairs, *pair;
     ngx_str_t input;
-     
-    count = 0;
+    #endif
+    
     match_count = 0;
-
+    count = 0;
+    
     log = r->connection->log;
    
     if(ngx_buf_size(ctx->line_in) <= 0)
@@ -1059,8 +1069,10 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
         return match_count; 
     }
     
+    
+    #if (NGX_PCRE)   
     src = ctx->line_in;
-
+ 
     if(!ctx->matched)
     {//this block will not run if sensitive content is already detected
         
@@ -1072,11 +1084,9 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
             input.len = ngx_buf_size(src);
           
             while(input.len > 0) 
-            {
-            
+            {            
                 /* regex matching */
-                #if (NGX_PCRE)
-
+              
                 pair->ncaptures = (NGX_HTTP_MAX_CAPTURES + 1) * 3;
                 pair->captures = ngx_pcalloc(r->pool, pair->ncaptures * sizeof(int));
                 
@@ -1109,7 +1119,7 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
                                                         " regexec failed: %i", count);
                     goto failed;
                 }    
-                #endif
+                
             }
             
             
@@ -1122,7 +1132,7 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
 
         }
     }
-    
+    #endif
 
     
     if (ngx_http_ct_out_chain_append(r, ctx, 
