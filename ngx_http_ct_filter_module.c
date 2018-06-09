@@ -108,7 +108,7 @@ typedef struct {
 
 typedef struct {
     ngx_array_t   *blk_pairs; /* array of blk_pair_t */
-   
+    ngx_flag_t    logonly;   /* flag to indicate logging only */
     ngx_chain_t   *in;
 
     /* the line input buffer before substitution */
@@ -363,6 +363,10 @@ ngx_http_ct_init_context(ngx_http_request_t *r)
         }
     }
     
+    if(slcf->logonly)
+    {
+        ctx->logonly = slcf->logonly;
+    }
 
     if (ctx->line_in == NULL) {
 
@@ -436,7 +440,7 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 goto failed;
             }
         }
-        else if(slcf->logonly)
+        else if(ctx->logonly)
         {//sensitive content already detected
          //just copy remaining buffer to output chain
          //if logonly is enabled, otherwise can ignore
@@ -473,7 +477,7 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
          ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
                       "[Content filter]: Alert ! Sensitive content is detected !");
         
-        if(!slcf->logonly)
+        if(!ctx->logonly)
         { //logonly is not enabled. Show empty page. 
     
             //Get a new buffer into ctx->out_buf        
@@ -1350,4 +1354,5 @@ ngx_test_ct_compression(ngx_http_request_t *r)
     //Fail safe to false if compression cannot be determined
     return 0; 
 }
+
 
