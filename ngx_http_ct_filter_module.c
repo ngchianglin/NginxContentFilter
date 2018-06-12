@@ -457,6 +457,20 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         if (ctx->last) 
         {//last buffer set the last_buf or last_in_chain flag 
          //for the last output buffer
+            if (ctx->out_buf == NULL) {
+                if (ngx_http_ct_get_chain_buf(r, ctx) != NGX_OK) {
+                    ngx_log_error(NGX_LOG_ERR, log, 0,
+                              "[Content filter]: ngx_http_ct_body_filter "
+                              "cannot get buffer for out_buf");
+                    return NGX_ERROR;
+              }
+            }
+            
+            if( ngx_buf_size(ctx->out_buf) == 0)
+            {//last buffer is zero size
+                 ctx->out_buf->sync = 1;
+            }
+            
             ctx->out_buf->last_buf = (r == r->main) ? 1 : 0;
             ctx->out_buf->last_in_chain = cl->buf->last_in_chain;
             break;
@@ -567,8 +581,10 @@ ngx_http_ct_body_filter_init_context(ngx_http_request_t *r, ngx_chain_t *in)
     }
 #endif
 
-    ctx->last_out = &ctx->out;
-    ctx->out_buf  = NULL;
+    if(ctx->out == NULL)
+    {
+        ctx->last_out = &ctx->out;
+    }
 
     return NGX_OK;
 }
@@ -614,8 +630,13 @@ ngx_http_ct_out_chain_append(ngx_http_request_t *r,
 {
     size_t       len, capcity;
 
-    if (b == NULL || ngx_buf_size(b) == 0) {
-        return NGX_OK;
+    if (b == NULL) {
+        
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                      "[Content filter]: ngx_http_ct_out_chain_append "
+                      "input buffer is null");
+        
+        return NGX_ERROR;
     }
 
     if (ctx->out_buf == NULL) {
@@ -1227,11 +1248,11 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
         if (linefeed == NULL) {
 
             if (ctx->last) {
-             //Last buffer no line feed. Set linefeed to last - 1 so
-             //it will be processed in the following statement
-             // (last - 1) will unlikely be zero since last as a 
-             // memory pointer should not be 1 unless there is an
-             // error elsewhere.              
+              /* Last buffer no line feed. Set linefeed to last - 1 so
+                it will be processed in subsequent block
+                (last - 1) will unlikely be zero since last as a 
+                memory pointer should not be 1 unless there is an
+                error elsewhere.  */            
                 linefeed = last - 1;
                 
                 #if CONTF_DEBUG
@@ -1240,8 +1261,7 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
                 #endif
             }
             else {
-                /* Not last buffer and no linefeed accumulate and wait for other buffers with linefeed*/
-                /* Not find linefeed in this chain, save the left data to line_in */
+                /* Not last buffer and no linefeed. Accumulate and wait for other buffers with linefeed*/
                 if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
                     == NULL) {
                     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0, 
