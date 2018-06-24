@@ -124,6 +124,13 @@ Attackers can try to subvert the protection mechanism through encoding attacks o
 The module is released under the BSD license (same as Nginx) and there are no warranties of any kinds. 
 Basically use it at your own risk ! Read and understand the License carefully. 
 
+## Further Details
+
+Refer to the following article, Blocking Sensitive Content Using Nginx and Docker for more details about the implementation and usage. 
+
+[https://www.nighthour.sg/articles/2018/blocking-sensitive-content-nginx-docker.html](https://www.nighthour.sg/articles/2018/blocking-sensitive-content-nginx-docker.html)
+
+
 ## Source signature
 Gpg Signed commits are used for committing the source files. 
 
