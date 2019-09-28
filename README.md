@@ -18,14 +18,14 @@ for the original substitution module.
 
 ## Installation 
 
-The module requires PCRE library. At the time of writing, the latest version is pcre 8.42. Download a copy of 
-[pcre 8.42](https://www.pcre.org/) and the latest 
-[nginx version 1.14.0](https://nginx.org/en/download.html). Refer to their respective project websites for details on how to verify the integrity of the source downloads. 
+The module requires PCRE library. At the time of writing, the latest version is pcre 8.43. Download a copy of 
+[pcre 8.43](https://www.pcre.org/) and the latest 
+[nginx version 1.16.1](https://nginx.org/en/download.html). Refer to their respective project websites for details on how to verify the integrity of the source downloads. 
 The following shows the sha-256 hashes for the 2 source packages. 
 
-    nginx-1.14.0.tar.gz  5d15becbf69aba1fe33f8d416d97edd95ea8919ea9ac519eff9bafebb6022cb5
+    nginx-1.16.1.tar.gz  f11c2a6dd1d3515736f0324857957db2de98be862461b5a542a3ac6188dbe32b
     
-    pcre-8.42.tar.gz  69acbc2fbdefb955d42a4c606dfde800c2885711d2979e356c0636efde9ec3b5 
+    pcre-8.43.tar.gz  0b8e7465dc5e98c757cc3650a20a7843ee4c3edf50aaf60bb33fd879690d2c73
 
 Download or clone a copy of this module
 
@@ -33,13 +33,13 @@ Download or clone a copy of this module
 
 Extract nginx and pcre source. 
 
-    tar -zxvf nginx-1.14.0.tar.gz
-    tar -zxvf pcre-8.42.tar.gz
+    tar -zxvf nginx-1.16.1.tar.gz
+    tar -zxvf pcre-8.43.tar.gz
 
 Configure and compile the module
 
-    cd nginx-1.14.0
-    ./configure --with-cc-opt="-Wextra -Wformat -Wformat-security -Wformat-y2k -fPIE -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all" --with-ld-opt="-pie -Wl,-z,relro -Wl,-z,now -Wl,--strip-all" --add-module=../NginxContentFilter  --with-pcre=../pcre-8.42 --with-pcre-opt="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all -fPIC" --with-pcre-jit
+    cd nginx-1.16.1
+    ./configure --with-cc-opt="-Wextra -Wformat -Wformat-security -Wformat-y2k -fPIE -O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all" --with-ld-opt="-pie -Wl,-z,relro -Wl,-z,now -Wl,--strip-all" --add-module=../NginxContentFilter  --with-pcre=../pcre-8.43 --with-pcre-opt="-O2 -D_FORTIFY_SOURCE=2 -fstack-protector-all -fPIC" --with-pcre-jit
     make
     sudo make install
 
