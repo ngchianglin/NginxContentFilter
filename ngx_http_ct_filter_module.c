@@ -509,15 +509,8 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             b->memory=1;
             b->pos = empty_page;
             b->last = empty_page + ngx_strlen(empty_page);
-            
-            if(r == r->main)
-            {		
-                b->last_buf = 1;
-            }
-            else
-            {
-                b->last_in_chain = 1; 
-            }
+            b->last_buf = 1;
+            b->last_in_chain = 1;
             
             ctx->out->buf = b;
             ctx->out->next = NULL; 
