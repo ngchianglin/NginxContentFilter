@@ -13,7 +13,7 @@ This module can be used as an additional security measure to protect websites ag
 sensitive data. The regular expressions for matching content are specified via the module configuration directives.
 
 Note, if the http content is compressed it will be skipped by the module and allowed to pass through.
-If the http content exceeds a maximum size set in NGX_HTTP_CT_MAX_CONTENT_SZ (10MB), it will be skipped and allowed to pass through.  
+If the http content exceeds a maximum size set in NGX_HTTP_CT_MAX_CONTENT_SZ (10MB), it will be skipped and allowed to pass through. The module will also skip HTTP Chunked Transfer Encoding. 
 
 This module is based on a fork of Weibin Yao(yaoweibin@gmail.com) nginx substitution module. Refer to the following github link
 for the original substitution module.
@@ -73,7 +73,7 @@ will be blocked if any of the directives matched.
 * default: text/html
 * context: HTTP, Server, Location
 
-Specifies the content types that the filter module will process. Note these should generally only be textual content such as html, text, javascript, css, xml etc... The default is text/html. 
+Specifies the content types that the filter module will process. Note these should generally only be textual content such as html, text, javascript, css, xml etc... The default is text/html.
 The filter module is not able to process compressed content. It can however work with compression module such as gzip so
 long as uncompressed content is run through the filter module first before being processed by gzip module.
 
