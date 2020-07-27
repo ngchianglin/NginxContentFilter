@@ -20,7 +20,8 @@
  *
  * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
  * or 10MB, the module will skip processing and let the content pass through.
- * Compressed content will also be skipped by the module.
+ * Compressed content will also be skipped by the module. The module will
+ * also skip HTTP chunked transfer encoding. 
  * Refer to the README file for instructions on setup and usage.
  *
  * The module is based on a fork of Weibin Yao(yaoweibin@gmail.com)
