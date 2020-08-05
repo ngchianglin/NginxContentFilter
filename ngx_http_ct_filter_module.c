@@ -170,6 +170,10 @@ static ngx_int_t ngx_http_ct_filter_init(ngx_conf_t *cf);
 
 static ngx_int_t ngx_http_ct_send_empty(ngx_http_request_t *r,
   ngx_http_ct_ctx_t *ctx);
+  
+static ngx_int_t
+ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p, 
+u_char *last, ngx_http_ct_ctx_t *ctx);
 
 #if (NGX_PCRE)
 static ngx_int_t ngx_http_ct_regex_capture_count(ngx_regex_t *re);
@@ -443,7 +447,8 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 " for sensitive content");
             goto failed;
         }
-
+        
+        
         if (ctx->last)
         {//last buffer set the last_buf or last_in_chain flag
          //for the last output buffer
@@ -465,6 +470,7 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             ctx->out_buf->last_in_chain = cl->buf->last_in_chain;
             break;
         }
+        
 
     }
 
@@ -476,9 +482,8 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     /*If sensitive content is detected */
-    if(ctx->matched && ctx->last)
-    {
-         ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+    if(ctx->matched && ctx->last) {
+        ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
                       "[Content filter]: Alert ! Sensitive content is detected !");
 
         if(!ctx->logonly)
@@ -1234,57 +1239,15 @@ failed:
 }
 
 
+
 static ngx_int_t
-ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
+ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p, 
+u_char *last, ngx_http_ct_ctx_t *ctx)
 {
-    u_char               *p, *last, *linefeed;
-    ngx_int_t             len, rc;
-    ngx_http_ct_ctx_t  *ctx;
-
-    ctx = ngx_http_get_module_ctx(r, ngx_http_ct_filter_module);
-
-    if (b == NULL) {
-        //Input buffer shouldn't be NULL
-        //If it is NULL, it is an error
-        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "[Content filter]: ngx_http_ct_body_filter_process_buffer "
-            " input buffer is null");
-        return NGX_ERROR;
-    }
-
-    p = b->pos;
-    last = b->last;
-    b->pos = b->last; //buffer is consumed
-
-    #if CONTF_DEBUG
-        ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: processing buffer: %p %uz, line_in buffer: %p %uz",
-                       b, last - p,
-                       ctx->line_in, ngx_buf_size(ctx->line_in));
-    #endif
-
-    if ((last - p) == 0 && ngx_buf_size(ctx->line_in) == 0){
-        return NGX_OK;
-    }
-
-    if ((last - p) == 0 && ngx_buf_size(ctx->line_in) && ctx->last) {
-
-        #if CONTF_DEBUG
-            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "[Content filter]: the last zero buffer, try to do substitution");
-        #endif
-
-        rc = ngx_http_ct_match(r, ctx);
-        if (rc < 0) {
-            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                "[Content filter]: ngx_http_ct_body_filter_process_buffer"
-                " regex matching for line fails");
-            return NGX_ERROR;
-        }
-
-        return NGX_OK;
-    }
-
+    u_char          *linefeed;
+    ngx_int_t       len, rc;
+    
+    
     while (p < last) {
 
         linefeed = memchr(p, LF, last - p);
@@ -1314,7 +1277,7 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
                 if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
                     == NULL) {
                     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "[Content filter]: ngx_http_ct_body_filter_process_buffer"
+                        "[Content filter]: ngx_http_ct_body_filter_getline_match"
                         " cannot append to string buffer");
                     return NGX_ERROR;
                 }
@@ -1329,7 +1292,7 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
 
             if (buffer_append_string(ctx->line_in, p, len, r->pool) == NULL) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "[Content filter]: ngx_http_ct_body_filter_process_buffer  "
+                        "[Content filter]: ngx_http_ct_body_filter_getline_match"
                         " cannot append to string buffer");
                 return NGX_ERROR;
             }
@@ -1339,15 +1302,92 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
             rc = ngx_http_ct_match(r, ctx);
             if (rc < 0) {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                     "[Content filter]: ngx_http_ct_body_filter_process_buffer"
+                     "[Content filter]: ngx_http_ct_body_filter_getline_match"
                      " regex matching for line fails");
                 return NGX_ERROR;
             }
 
         }
     }
+    
+     return NGX_OK;
+    
+    
+}
 
-    return NGX_OK;
+
+static ngx_int_t
+ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
+{
+    size_t               bufsz;
+    u_char               *p, *last;
+    ngx_int_t            rc;
+    ngx_http_ct_ctx_t    *ctx;
+    
+    rc = NGX_OK;
+
+    ctx = ngx_http_get_module_ctx(r, ngx_http_ct_filter_module);
+
+    if (b == NULL) {
+        ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+            "[Content filter]: ngx_http_ct_body_filter_process_buffer "
+            " input buffer is null");
+        return NGX_ERROR;
+    }
+    
+    bufsz = (size_t) ngx_buf_size(b);
+    
+    p = b->pos;
+    last = b->last;
+    b->pos = b->last; //buffer is consumed
+
+    #if CONTF_DEBUG
+        ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                       "[Content filter]: processing buffer: %p %uz, line_in buffer: %p %uz",
+                       b, last - p,
+                       ctx->line_in, ngx_buf_size(ctx->line_in));
+    #endif
+    
+    
+    if (bufsz != 0) {
+        
+        /* Input buffer is not zero */
+        
+        rc = ngx_http_ct_body_filter_getline_match(r, p, last, ctx);
+        
+    }
+    else
+    {
+        /* Input buffer is zero */
+        
+        if (ctx->last) {
+            
+            #if CONTF_DEBUG
+            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "[Content filter]: the last zero buffer, try to do substitution");
+            #endif
+
+            /* Last buffer try to do a match if line_in is not empty */
+            if (ngx_buf_size(ctx->line_in)) {
+
+                rc = ngx_http_ct_match(r, ctx);
+                if (rc < 0) {
+                    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                        "[Content filter]: ngx_http_ct_body_filter_process_buffer"
+                        " regex matching for line fails");
+                    return NGX_ERROR;
+                }
+
+            }
+            
+        }
+        
+        
+    }
+    
+    
+    return rc;
+    
 }
 
 
