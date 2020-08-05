@@ -20,8 +20,9 @@
  *
  * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
  * or 10MB, the module will skip processing and let the content pass through.
- * Compressed content will also be skipped by the module. The module will
- * also skip HTTP chunked transfer encoding. 
+ * Note the size limit doesn't apply for HTTP Trunked Transfer Encoding.
+ * Compressed content will also be skipped by the module. 
+ * 
  * Refer to the README file for instructions on setup and usage.
  *
  * The module is based on a fork of Weibin Yao(yaoweibin@gmail.com)
@@ -256,7 +257,7 @@ extern volatile ngx_cycle_t  *ngx_cycle;
 static ngx_int_t
 ngx_http_ct_header_filter(ngx_http_request_t *r)
 {
-    ngx_uint_t              content_length = 0;
+  
     ngx_http_ct_loc_conf_t  *slcf;
 
 
@@ -267,14 +268,12 @@ ngx_http_ct_header_filter(ngx_http_request_t *r)
         return ngx_http_next_header_filter(r);
     }
 
-   content_length = r->headers_out.content_length_n;
 
     if (slcf->blk_pairs == NULL
         || slcf->blk_pairs->nelts == 0
         || r->header_only
         || r->headers_out.content_type.len == 0
-        || content_length == 0
-        || content_length > NGX_HTTP_CT_MAX_CONTENT_SZ)
+        || r->headers_out.content_type.len > NGX_HTTP_CT_MAX_CONTENT_SZ)
     {
         return ngx_http_next_header_filter(r);
     }
