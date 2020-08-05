@@ -173,7 +173,7 @@ static ngx_int_t ngx_http_ct_send_empty(ngx_http_request_t *r,
   
 static ngx_int_t
 ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p, 
-u_char *last, ngx_http_ct_ctx_t *ctx);
+    u_char *last, ngx_http_ct_ctx_t *ctx);
 
 #if (NGX_PCRE)
 static ngx_int_t ngx_http_ct_regex_capture_count(ngx_regex_t *re);
@@ -1256,38 +1256,10 @@ u_char *last, ngx_http_ct_ctx_t *ctx)
             ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[Content filter]: find linefeed: %p",
                            linefeed);
         #endif
-
-        if (linefeed == NULL) {
-
-            if (ctx->last) {
-              /* Last buffer no line feed. Set linefeed to last - 1 so
-                it will be processed in subsequent block
-                (last - 1) will unlikely be zero since last as a
-                memory pointer should not be 1 unless there is an
-                error elsewhere.  */
-                linefeed = last - 1;
-
-                #if CONTF_DEBUG
-                    ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                                   "[Content filter]: the last buffer, not find linefeed");
-                #endif
-            }
-            else {
-                /* Not last buffer and no linefeed. Accumulate and wait for other buffers with linefeed*/
-                if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
-                    == NULL) {
-                    ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "[Content filter]: ngx_http_ct_body_filter_getline_match"
-                        " cannot append to string buffer");
-                    return NGX_ERROR;
-                }
-
-                break;
-            }
-        }
-
+        
+        
         if (linefeed) {
-
+            /* linefeed found */
             len = linefeed - p + 1;
 
             if (buffer_append_string(ctx->line_in, p, len, r->pool) == NULL) {
@@ -1306,11 +1278,47 @@ u_char *last, ngx_http_ct_ctx_t *ctx)
                      " regex matching for line fails");
                 return NGX_ERROR;
             }
-
+            
+            
         }
+        else {
+          /* no linefeed */  
+          
+          if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
+                    == NULL) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                    "[Content filter]: ngx_http_ct_body_filter_getline_match"
+                    " cannot append to string buffer");
+                return NGX_ERROR;
+          }  
+          
+          /* Exit while loop as the entire or remaining buffer no linefeed*/  
+          break;  
+            
+        }
+
     }
     
-     return NGX_OK;
+
+    if (linefeed == NULL && ctx->last) {
+        /* If it is last buffer and no linefeed */
+        
+        if (ngx_buf_size(ctx->line_in)) {
+            
+            rc = ngx_http_ct_match(r, ctx);
+            if (rc < 0) {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                     "[Content filter]: ngx_http_ct_body_filter_getline_match"
+                     " regex matching for line fails");
+                return NGX_ERROR;
+            }
+            
+        }
+        
+    }    
+    
+     
+    return NGX_OK;
     
     
 }
