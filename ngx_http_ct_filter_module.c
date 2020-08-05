@@ -20,7 +20,7 @@
  *
  * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
  * or 10MB, the module will skip processing and let the content pass through.
- * Note the size limit doesn't apply for HTTP Trunked Transfer Encoding.
+ * Note the size limit doesn't apply for HTTP Chunked Transfer Encoding.
  * Compressed content will also be skipped by the module. 
  * 
  * Refer to the README file for instructions on setup and usage.
