@@ -20,6 +20,8 @@
  *
  * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
  * or 10MB, the module will skip processing and let the content pass through.
+ * In blocking mode if matches are detected before NGX_HTTP_CT_MAX_CONTENT_SZ
+ * is reached, an empty page will be sent. 
  * 
  * Compressed content will also be skipped by the module. 
  * 
@@ -458,6 +460,22 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
                 "ngx_http_ct_body_filter error procesing buffer"
                 " for sensitive content");
             goto failed;
+        }
+        
+        /*If sensitive content is detected and log only disabled*/
+        if(ctx->matched 
+           && ctx->contentsize <= NGX_HTTP_CT_MAX_CONTENT_SZ
+           && !ctx->logonly) {
+            
+            if (ctx->logonce == 0) {
+                
+                ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+                              "[Content filter]: Alert ! Sensitive content is detected !");
+                ctx->logonce = 1;
+            }        
+
+            return ngx_http_ct_send_empty(r,ctx);
+
         }
         
         
