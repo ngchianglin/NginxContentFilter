@@ -452,7 +452,7 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         if (ctx->last)
         {//last buffer set the last_buf or last_in_chain flag
          //for the last output buffer
-            if (ctx->out_buf == NULL) {
+            if (ctx->out == NULL) {
                 if (ngx_http_ct_get_chain_buf(r, ctx) != NGX_OK) {
                     ngx_log_error(NGX_LOG_ERR, log, 0,
                               "[Content filter]: ngx_http_ct_body_filter "
