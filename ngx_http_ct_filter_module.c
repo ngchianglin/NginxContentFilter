@@ -20,7 +20,7 @@
  *
  * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
  * or 10MB, the module will skip processing and let the content pass through.
- * Note the size limit doesn't apply for HTTP Chunked Transfer Encoding.
+ * 
  * Compressed content will also be skipped by the module. 
  * 
  * Refer to the README file for instructions on setup and usage.
@@ -133,6 +133,9 @@ typedef struct {
 
     unsigned       last;
     unsigned int    matched;
+    
+    /* output content size */
+    off_t          contentsize;
 
 } ngx_http_ct_ctx_t;
 
@@ -427,12 +430,20 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     if (in == NULL && ctx->busy == NULL) {
         return ngx_http_next_body_filter(r, in);
     }
+    
+    
+    if(ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ && 
+       ctx->out == NULL) {
+        return ngx_http_next_body_filter(r, in);
+    }
 
     if (ngx_http_ct_body_filter_init_context(r, in) != NGX_OK) {
         goto failed;
     }
 
     for (cl = ctx->in; cl; cl = cl->next) {
+        
+        ctx->contentsize += ngx_buf_size(cl->buf);
 
         if (cl->buf->last_buf || cl->buf->last_in_chain) {
             ctx->last = 1;
@@ -482,7 +493,7 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
     }
 
     /*If sensitive content is detected */
-    if(ctx->matched && ctx->last) {
+    if(ctx->matched && ctx->contentsize <= NGX_HTTP_CT_MAX_CONTENT_SZ) {
         ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
                       "[Content filter]: Alert ! Sensitive content is detected !");
 
@@ -804,7 +815,7 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
 #endif
 
 
-    if(ctx->last)
+    if (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ)
     {
 
         #if CONTF_DEBUG
@@ -849,7 +860,7 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
                             (ngx_buf_tag_t) &ngx_http_ct_filter_module);
 #endif
 
-    if (ctx->last) {
+    if (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ) {
         r->connection->buffered &= ~NGX_HTTP_SUB_BUFFERED;
     }
 
@@ -1300,8 +1311,10 @@ u_char *last, ngx_http_ct_ctx_t *ctx)
     }
     
 
-    if (linefeed == NULL && ctx->last) {
-        /* If it is last buffer and no linefeed */
+    if (linefeed == NULL && 
+        (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ)) {
+        
+        /* If it is last buffer or maximum content size and no linefeed */
         
         if (ngx_buf_size(ctx->line_in)) {
             
