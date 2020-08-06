@@ -133,6 +133,7 @@ typedef struct {
 
     unsigned       last;
     unsigned int    matched;
+    unsigned int    logonce;
     
     /* output content size */
     off_t          contentsize;
@@ -494,8 +495,14 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
     /*If sensitive content is detected */
     if(ctx->matched && ctx->contentsize <= NGX_HTTP_CT_MAX_CONTENT_SZ) {
-        ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
-                      "[Content filter]: Alert ! Sensitive content is detected !");
+        
+        if (ctx->logonce == 0) {
+            
+            ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+                          "[Content filter]: Alert ! Sensitive content is detected !");
+            ctx->logonce = 1;
+        }        
+
 
         if(!ctx->logonly)
         { //logonly is not enabled. Show empty page.
