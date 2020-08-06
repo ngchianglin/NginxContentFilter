@@ -14,6 +14,7 @@ sensitive data. The regular expressions for matching content are specified via t
 
 Note, if the http content is compressed it will be skipped by the module and allowed to pass through.
 If the http content exceeds a maximum size set in NGX_HTTP_CT_MAX_CONTENT_SZ (10MB), it will be skipped and allowed to pass through.
+In blocking mode, if matches are detected before NGX_HTTP_CT_MAX_CONTENT_SZ is reached, an empty or blank page will be sent. 
 
 This module is based on a fork of Weibin Yao(yaoweibin@gmail.com) nginx substitution module. Refer to the following github link
 for the original substitution module.
