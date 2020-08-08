@@ -2,11 +2,13 @@
  *
  * Nginx Content Filter Module
  *
- * This is an nginx filter module that can filter and block sensitive content
- * such as NRIC numbers, mobile numbers etc... using pcre regular expression.
- * The module filters HTTP response body using regular expressions specified
- * through nginx configuration directives. Matching is done on a line by
- * line basis.
+ * This is an nginx filter module that can filter and block sensitive 
+ * content such as NRIC numbers, mobile numbers etc... using 
+ * pcre regular expression.
+ * 
+ * The module filters HTTP response body using regular expressions 
+ * specified through nginx configuration directives. 
+ * Matching is done on a line by line basis.
  *
  * When matches are detected in the HTTP response body,
  * it will log an alert and display a blank empty page instead of the
@@ -15,16 +17,16 @@
  * The module can be an additional layer of defense against malicious
  * web attacks.
  *
- * A logging only mode is also available. This can be useful for troubleshooting
- * without blocking actual web content.
+ * A logging only mode is also available. This can be useful for 
+ * troubleshooting without blocking actual web content.
+ * 
+ * The module will not process compressed content and it will 
+ * be allowed to pass through. 
+ * 
+ * If the HTTP response body size is more than 
+ * NGX_HTTP_CT_MAX_CONTENT_SZ or 10MB, the module will 
+ * send an empty page.
  *
- * Note if the HTTP response body size is more than NGX_HTTP_CT_MAX_CONTENT_SZ
- * or 10MB, the module will skip processing and let the content pass through.
- * In blocking mode if matches are detected before NGX_HTTP_CT_MAX_CONTENT_SZ
- * is reached, an empty page will be sent. 
- * 
- * Compressed content will also be skipped by the module. 
- * 
  * Refer to the README file for instructions on setup and usage.
  *
  * The module is based on a fork of Weibin Yao(yaoweibin@gmail.com)
@@ -104,9 +106,9 @@ typedef struct {
 
 typedef struct {
     ngx_hash_t     types;
-    ngx_array_t   *blk_pairs; /* array of blk_pair_t */
+    ngx_array_t   *blk_pairs;   /* array of blk_pair_t */
     ngx_array_t   *types_keys;  /* array of ngx_hash_key_t */
-    ngx_flag_t    logonly;   /* flag to indicate logging only */
+    ngx_flag_t    logonly;      /* flag to indicate logging only */
     size_t         line_buffer_size;
     ngx_bufs_t     bufs;
 } ngx_http_ct_loc_conf_t;
@@ -114,7 +116,7 @@ typedef struct {
 
 typedef struct {
     ngx_array_t   *blk_pairs; /* array of blk_pair_t */
-    ngx_flag_t    logonly;   /* flag to indicate logging only */
+    ngx_flag_t    logonly;    /* flag to indicate logging only */
     ngx_chain_t   *in;
 
     /* the line input buffer before substitution */
@@ -136,7 +138,7 @@ typedef struct {
     unsigned       last;
     unsigned int    matched;
     unsigned int    logonce;
-    
+
     /* output content size */
     off_t          contentsize;
 
@@ -145,41 +147,49 @@ typedef struct {
 
 
 static char * ngx_http_ct_filter(ngx_conf_t *cf, ngx_command_t *cmd,
-    void *conf);
+                                 void *conf);
+                                 
 static ngx_int_t ngx_http_ct_filter_regex_compile(blk_pair_t *pair,
-    ngx_conf_t *cf);
+                                                  ngx_conf_t *cf);
+                                                  
 static ngx_int_t ngx_http_ct_match(ngx_http_request_t *r,
-    ngx_http_ct_ctx_t *ctx);
-static ngx_int_t ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r,
-    ngx_buf_t *b);
+                                   ngx_http_ct_ctx_t *ctx);
+                                   
+static ngx_int_t ngx_http_ct_body_filter_process_buffer(
+                                   ngx_http_request_t *r, ngx_buf_t *b);
+                                   
 static ngx_int_t ngx_test_ct_compression(ngx_http_request_t *r);
-
-
 static ngx_int_t ngx_http_ct_header_filter(ngx_http_request_t *r);
 static ngx_int_t ngx_http_ct_init_context(ngx_http_request_t *r);
+
 static ngx_int_t ngx_http_ct_body_filter(ngx_http_request_t *r,
-    ngx_chain_t *in);
-static ngx_int_t ngx_http_ct_body_filter_init_context(ngx_http_request_t *r,
-    ngx_chain_t *in);
-static ngx_buf_t * buffer_append_string(ngx_buf_t *b, u_char *s, size_t len,
-    ngx_pool_t *pool);
+                                         ngx_chain_t *in);
+                                         
+static ngx_int_t ngx_http_ct_body_filter_init_context(
+                                ngx_http_request_t *r, ngx_chain_t *in);
+                                
+static ngx_buf_t * buffer_append_string(ngx_buf_t *b, u_char *s,
+                                        size_t len, ngx_pool_t *pool);
+                                        
 static ngx_int_t  ngx_http_ct_out_chain_append(ngx_http_request_t *r,
-    ngx_http_ct_ctx_t *ctx, ngx_buf_t *b);
+                                  ngx_http_ct_ctx_t *ctx, ngx_buf_t *b);
+                                  
 static ngx_int_t  ngx_http_ct_get_chain_buf(ngx_http_request_t *r,
-    ngx_http_ct_ctx_t *ctx);
+                                            ngx_http_ct_ctx_t *ctx);
 static ngx_int_t ngx_http_ct_output(ngx_http_request_t *r,
-    ngx_http_ct_ctx_t *ctx, ngx_chain_t *in);
+                               ngx_http_ct_ctx_t *ctx, ngx_chain_t *in);
+
 static void *ngx_http_ct_create_conf(ngx_conf_t *cf);
 static char *ngx_http_ct_merge_conf(ngx_conf_t *cf, void *parent,
-    void *child);
+                                    void *child);
 static ngx_int_t ngx_http_ct_filter_init(ngx_conf_t *cf);
 
 static ngx_int_t ngx_http_ct_send_empty(ngx_http_request_t *r,
-  ngx_http_ct_ctx_t *ctx);
-  
+                                        ngx_http_ct_ctx_t *ctx);
+
 static ngx_int_t
-ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p, 
-    u_char *last, ngx_http_ct_ctx_t *ctx);
+ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p,
+                                  u_char *last, ngx_http_ct_ctx_t *ctx);
 
 #if (NGX_PCRE)
 static ngx_int_t ngx_http_ct_regex_capture_count(ngx_regex_t *re);
@@ -188,7 +198,7 @@ static ngx_int_t ngx_http_ct_regex_capture_count(ngx_regex_t *re);
 
 static ngx_command_t  ngx_http_ct_filter_commands[] = {
 
-      { ngx_string("ct_filter"),
+    { ngx_string("ct_filter"),
       NGX_HTTP_LOC_CONF|NGX_CONF_TAKE2,
       ngx_http_ct_filter,
       NGX_HTTP_LOC_CONF_OFFSET,
@@ -228,17 +238,17 @@ static ngx_command_t  ngx_http_ct_filter_commands[] = {
 
 
 static ngx_http_module_t  ngx_http_ct_filter_module_ctx = {
-    NULL,                                  /* preconfiguration */
-    ngx_http_ct_filter_init,             /* postconfiguration */
+    NULL,                            /* preconfiguration */
+    ngx_http_ct_filter_init,         /* postconfiguration */
 
-    NULL,                                  /* create main configuration */
-    NULL,                                  /* init main configuration */
+    NULL,                            /* create main configuration */
+    NULL,                            /* init main configuration */
 
-    NULL,                                  /* create server configuration */
-    NULL,                                  /* merge server configuration */
+    NULL,                            /* create server configuration */
+    NULL,                            /* merge server configuration */
 
-    ngx_http_ct_create_conf,             /* create location configuration */
-    ngx_http_ct_merge_conf               /* merge location configuration */
+    ngx_http_ct_create_conf,         /* create location configuration */
+    ngx_http_ct_merge_conf           /* merge location configuration */
 };
 
 
@@ -246,14 +256,14 @@ ngx_module_t  ngx_http_ct_filter_module = {
     NGX_MODULE_V1,
     &ngx_http_ct_filter_module_ctx,      /* module context */
     ngx_http_ct_filter_commands,         /* module directives */
-    NGX_HTTP_MODULE,                       /* module type */
-    NULL,                                  /* init master */
-    NULL,                                  /* init module */
-    NULL,                                  /* init process */
-    NULL,                                  /* init thread */
-    NULL,                                  /* exit thread */
-    NULL,                                  /* exit process */
-    NULL,                                  /* exit master */
+    NGX_HTTP_MODULE,                     /* module type */
+    NULL,                                /* init master */
+    NULL,                                /* init module */
+    NULL,                                /* init process */
+    NULL,                                /* init thread */
+    NULL,                                /* exit thread */
+    NULL,                                /* exit process */
+    NULL,                                /* exit master */
     NGX_MODULE_V1_PADDING
 };
 
@@ -267,7 +277,7 @@ extern volatile ngx_cycle_t  *ngx_cycle;
 static ngx_int_t
 ngx_http_ct_header_filter(ngx_http_request_t *r)
 {
-  
+
     ngx_http_ct_loc_conf_t  *slcf;
 
 
@@ -282,8 +292,7 @@ ngx_http_ct_header_filter(ngx_http_request_t *r)
     if (slcf->blk_pairs == NULL
         || slcf->blk_pairs->nelts == 0
         || r->header_only
-        || r->headers_out.content_type.len == 0
-        || r->headers_out.content_type.len > NGX_HTTP_CT_MAX_CONTENT_SZ)
+        || r->headers_out.content_type.len == 0)
     {
         return ngx_http_next_header_filter(r);
     }
@@ -304,7 +313,8 @@ ngx_http_ct_header_filter(ngx_http_request_t *r)
 
     #if CONTF_DEBUG
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: http content filter header \"%V\"", &r->uri);
+                       "[Content filter]: "
+                       "http content filter header \"%V\"", &r->uri);
     #endif
 
     if (ngx_http_ct_init_context(r) == NGX_ERROR) {
@@ -352,13 +362,14 @@ ngx_http_ct_init_context(ngx_http_request_t *r)
 
     ngx_http_set_ctx(r, ctx, ngx_http_ct_filter_module);
 
-    if(slcf->blk_pairs != NULL)
-    {
+    if (slcf->blk_pairs != NULL) {
+        
          /* Deep copy blk_pairs from slcf to ctx  */
-        ctx->blk_pairs = ngx_array_create(r->pool, slcf->blk_pairs->nelts,
+        ctx->blk_pairs = ngx_array_create(r->pool, 
+                                          slcf->blk_pairs->nelts,
                                           sizeof(blk_pair_t));
-        if(ctx->blk_pairs == NULL)
-        {
+                                          
+        if (ctx->blk_pairs == NULL) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                      "[Content filter]: ngx_http_ct_init_context"
                      " cannot initialize memory "
@@ -379,18 +390,19 @@ ngx_http_ct_init_context(ngx_http_request_t *r)
                 return NGX_ERROR;
             }
 
-            ngx_memcpy(dst_blk_pair, src_blk_pair + i, sizeof(blk_pair_t));
+            ngx_memcpy(dst_blk_pair, src_blk_pair + i, 
+                       sizeof(blk_pair_t));
         }
     }
 
-    if(slcf->logonly)
-    {
+    if (slcf->logonly) {
         ctx->logonly = slcf->logonly;
     }
 
     if (ctx->line_in == NULL) {
 
-        ctx->line_in = ngx_create_temp_buf(r->pool, slcf->line_buffer_size);
+        ctx->line_in = ngx_create_temp_buf(r->pool, 
+                                           slcf->line_buffer_size);
         if (ctx->line_in == NULL) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
                      "[Content filter]: ngx_http_ct_init_context"
@@ -407,7 +419,7 @@ ngx_http_ct_init_context(ngx_http_request_t *r)
 static ngx_int_t
 ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 {
-    ngx_int_t    	          rc;
+    ngx_int_t               rc;
     ngx_log_t               *log;
     ngx_chain_t             *cl;
     ngx_http_ct_ctx_t       *ctx;
@@ -427,25 +439,33 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
 
     #if CONTF_DEBUG
         ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0,
-                       "[Content filter]: ngx_http_ct_body_filter http content filter \"%V\"", &r->uri);
+                       "[Content filter]: ngx_http_ct_body_filter"
+                       " \"%V\"", &r->uri);
     #endif
 
     if (in == NULL && ctx->busy == NULL) {
         return ngx_http_next_body_filter(r, in);
     }
-    
-    
-    if(ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ && 
-       ctx->out == NULL) {
-        return ngx_http_next_body_filter(r, in);
+
+    /* Maximum size exceeded */
+    if (ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ  
+       || r->headers_out.content_type.len > NGX_HTTP_CT_MAX_CONTENT_SZ) 
+    {
+
+        ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+                      "[Content filter]: Maximum size exceeded !");
+
+        return ngx_http_ct_send_empty(r,ctx);
     }
+
+
 
     if (ngx_http_ct_body_filter_init_context(r, in) != NGX_OK) {
         goto failed;
     }
 
     for (cl = ctx->in; cl; cl = cl->next) {
-        
+
         ctx->contentsize += ngx_buf_size(cl->buf);
 
         if (cl->buf->last_buf || cl->buf->last_in_chain) {
@@ -456,43 +476,64 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
         rc = ngx_http_ct_body_filter_process_buffer(r, cl->buf);
 
         if (rc == NGX_ERROR) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: "
-                "ngx_http_ct_body_filter error procesing buffer"
-                " for sensitive content");
+            
+            ngx_log_error(NGX_LOG_ERR, log, 0,  
+                          "[Content filter]: "
+                          "ngx_http_ct_body_filter "
+                          "error procesing buffer "
+                          "for sensitive content");
             goto failed;
         }
         
-        /*If sensitive content is detected and log only disabled*/
-        if(ctx->matched 
-           && ctx->contentsize <= NGX_HTTP_CT_MAX_CONTENT_SZ
-           && !ctx->logonly) {
-            
+
+        /* Sensitive content is detected and log only disabled */
+        if (ctx->matched && !ctx->logonly) {
+
             if (ctx->logonce == 0) {
                 
                 ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
-                              "[Content filter]: Alert ! Sensitive content is detected !");
+                              "[Content filter]: Alert ! "
+                              "Sensitive content is detected !");
+                              
                 ctx->logonce = 1;
-            }        
+            }
 
             return ngx_http_ct_send_empty(r,ctx);
-
         }
         
         
-        if (ctx->last)
-        {//last buffer set the last_buf or last_in_chain flag
-         //for the last output buffer
+        /* Maximum size exceeded */
+        if (ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ) {
+
+            ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
+                          "[Content filter]: Maximum size exceeded !");
+
+            return ngx_http_ct_send_empty(r,ctx);
+        }
+        
+
+
+        if (ctx->last) {
+            
+            /* 
+             * last buffer set the last_buf or last_in_chain flag
+             * for the last output buffer 
+             */
+             
             if (ctx->out == NULL) {
+                
                 if (ngx_http_ct_get_chain_buf(r, ctx) != NGX_OK) {
                     ngx_log_error(NGX_LOG_ERR, log, 0,
-                              "[Content filter]: ngx_http_ct_body_filter "
-                              "cannot get buffer for out_buf");
+                                 "[Content filter]: "
+                                 "ngx_http_ct_body_filter "
+                                 "cannot get buffer for out_buf");
                     return NGX_ERROR;
               }
+              
             }
+            
 
-            if( ngx_buf_size(ctx->out_buf) == 0)
-            {//last buffer is zero size
+            if (ngx_buf_size(ctx->out_buf) == 0) {
                  ctx->out_buf->sync = 1;
             }
 
@@ -500,30 +541,36 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             ctx->out_buf->last_in_chain = cl->buf->last_in_chain;
             break;
         }
-        
+
 
     }
+
 
     /* It doesn't output anything, return */
     if ((ctx->out == NULL) && (ctx->busy == NULL)) {
+        
         ngx_log_error(NGX_LOG_WARN, r->connection->log, 0,
-                     "[Content filter]: ngx_http_ct_body_filter nothing to output");
+                     "[Content filter]: ngx_http_ct_body_filter "
+                     "nothing to output");
+                     
         return NGX_OK;
     }
+    
 
-    /*If sensitive content is detected */
-    if(ctx->matched && ctx->contentsize <= NGX_HTTP_CT_MAX_CONTENT_SZ) {
-        
+    /* Sensitive content is detected */
+    if (ctx->matched) {
+
         if (ctx->logonce == 0) {
-            
+
             ngx_log_error(NGX_LOG_ALERT, r->connection->log, 0,
-                          "[Content filter]: Alert ! Sensitive content is detected !");
+                          "[Content filter]: Alert ! "
+                          "Sensitive content is detected !");
             ctx->logonce = 1;
-        }        
+        }
 
 
-        if(!ctx->logonly)
-        { //logonly is not enabled. Show empty page.
+        if(!ctx->logonly) { 
+         /* logonly is not enabled. Show empty page */
            return ngx_http_ct_send_empty(r,ctx);
         }
 
@@ -539,19 +586,20 @@ failed:
     return NGX_ERROR;
 }
 
+
 static ngx_int_t
 ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
 {
 
-     u_char        *empty_content;
-     size_t        i, quotient, remainder;
-     ngx_buf_t     *b;
-     ngx_int_t     rc;
-     ngx_uint_t    content_length = 0;
-     ngx_chain_t   *cl, **ll;
+    u_char        *empty_content;
+    size_t        i, quotient, remainder;
+    ngx_buf_t     *b;
+    ngx_int_t     rc;
+    ngx_uint_t    content_length = 0;
+    ngx_chain_t   *cl, **ll;
 
 
-     content_length = r->headers_out.content_length_n;
+    content_length = r->headers_out.content_length_n;
 
      /* Ensure that content length is a sane value */
     if (r->headers_out.content_length_n == -1
@@ -566,12 +614,12 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
    quotient = content_length / NGX_HTTP_CT_BUF_SIZE;
    remainder = content_length % NGX_HTTP_CT_BUF_SIZE;
 
-   if (remainder > 0)
-   {
+   if (remainder > 0) {
        quotient = quotient + 1;
    }
 
-   empty_content = ngx_pcalloc(r->pool, sizeof(u_char) * NGX_HTTP_CT_BUF_SIZE);
+   empty_content = ngx_pcalloc(r->pool, 
+                               sizeof(u_char) * NGX_HTTP_CT_BUF_SIZE);
 
    if (empty_content == NULL)
    {
@@ -606,11 +654,13 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
       b->last_in_chain = 0;
 
       if (i == (quotient - 1)) {
-       /* last iteration */
-       /* Set the content size to the remaining remainder */
-         b->last = empty_content + remainder;
-         b->last_buf = (r == r->main) ? 1: 0;
-         b->last_in_chain = 1;
+        /* 
+        * last iteration
+        * Set the content size to remaining remainder 
+        */
+        b->last = empty_content + remainder;
+        b->last_buf = (r == r->main) ? 1: 0;
+        b->last_in_chain = 1;
       }
 
       *ll = cl;
@@ -622,15 +672,17 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
   ngx_chain_update_chains(r->pool, &ctx->free, &ctx->busy, &ctx->out,
         (ngx_buf_tag_t)&ngx_http_ct_filter_module);
 
-  /*Send empty means no more output expected*/
+  /* Send empty means no more output expected */
   r->connection->buffered &= ~NGX_HTTP_SUB_BUFFERED;
 
   return rc;
 
 }
 
+
 static ngx_int_t
-ngx_http_ct_body_filter_init_context(ngx_http_request_t *r, ngx_chain_t *in)
+ngx_http_ct_body_filter_init_context(ngx_http_request_t *r,
+                                     ngx_chain_t *in)
 {
     ngx_http_ct_ctx_t  *ctx;
 
@@ -643,36 +695,38 @@ ngx_http_ct_body_filter_init_context(ngx_http_request_t *r, ngx_chain_t *in)
     if (in) {
         if (ngx_chain_add_copy(r->pool, &ctx->in, in) != NGX_OK) {
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                      "[Content filter]: ngx_http_ct_body_filter_init_context "
-                      " Cannot copy incoming chains to ctx->in");
+                          "[Content filter]: "
+                          "ngx_http_ct_body_filter_init_context "
+                          "Cannot copy incoming chains to ctx->in");
             return NGX_ERROR;
         }
     }
 
-#if CONTF_DEBUG
-    if (ngx_buf_size(ctx->line_in) > 0) {
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: subs line in buffer: %p, size:%uz",
-                       ctx->line_in, ngx_buf_size(ctx->line_in));
-    }
-#endif
-
-#if CONTF_DEBUG
-    ngx_chain_t               *cl;
-
-    for (cl = ctx->in; cl; cl = cl->next) {
-        if (cl->buf) {
-            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "[Content filter]: subs in buffer:%p, size:%uz, "
-                           "flush:%d, last_buf:%d",
-                           cl->buf, ngx_buf_size(cl->buf),
-                           cl->buf->flush, cl->buf->last_buf);
+    #if CONTF_DEBUG
+        if (ngx_buf_size(ctx->line_in) > 0) {
+            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "[Content filter]: "
+                           "subs line in buffer: %p, size:%uz",
+                           ctx->line_in, ngx_buf_size(ctx->line_in));
         }
-    }
-#endif
+    #endif
 
-    if(ctx->out == NULL)
-    {
+    #if CONTF_DEBUG
+        ngx_chain_t               *cl;
+
+        for (cl = ctx->in; cl; cl = cl->next) {
+            if (cl->buf) {
+                ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 
+                               0, "[Content filter]: "
+                               "subs in buffer:%p, size:%uz, "
+                               "flush:%d, last_buf:%d",
+                               cl->buf, ngx_buf_size(cl->buf),
+                               cl->buf->flush, cl->buf->last_buf);
+            }
+        }
+    #endif
+
+    if (ctx->out == NULL) {
         ctx->last_out = &ctx->out;
     }
 
@@ -681,7 +735,8 @@ ngx_http_ct_body_filter_init_context(ngx_http_request_t *r, ngx_chain_t *in)
 
 
 static ngx_buf_t *
-buffer_append_string(ngx_buf_t *b, u_char *s, size_t len, ngx_pool_t *pool)
+buffer_append_string(ngx_buf_t *b, u_char *s, size_t len, 
+                     ngx_pool_t *pool)
 {
     u_char     *p;
     ngx_uint_t capacity, size;
@@ -748,7 +803,8 @@ ngx_http_ct_out_chain_append(ngx_http_request_t *r,
         capcity = ctx->out_buf->end - ctx->out_buf->last;
 
         if (len <= capcity) {
-            ctx->out_buf->last = ngx_copy(ctx->out_buf->last, b->pos, len);
+            ctx->out_buf->last = ngx_copy(ctx->out_buf->last, 
+                                        b->pos, len);
             b->pos += len;
             break;
 
@@ -825,23 +881,24 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
 {
     ngx_int_t     rc;
 
-#if CONTF_DEBUG
-    ngx_buf_t    *b;
-    ngx_chain_t  *cl;
+    #if CONTF_DEBUG
+        ngx_buf_t    *b;
+        ngx_chain_t  *cl;
 
-    for (cl = ctx->out; cl; cl = cl->next) {
+        for (cl = ctx->out; cl; cl = cl->next) {
 
-        b = cl->buf;
+            b = cl->buf;
 
-        ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: subs out buffer:%p, size:%uz, t:%d, l:%d",
-                       b, ngx_buf_size(b), b->temporary, b->last_buf);
-    }
-#endif
+            ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "[Content filter]: subs out buffer:"
+                           "%p, size:%uz, t:%d, l:%d",
+                        b, ngx_buf_size(b), b->temporary, b->last_buf);
+                           
+        }
+    #endif
 
 
-    if (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ)
-    {
+    if (ctx->last) {
 
         #if CONTF_DEBUG
              ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
@@ -853,29 +910,40 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
         /* ctx->out may not output all the data */
         rc = ngx_http_next_body_filter(r, ctx->out);
         if (rc == NGX_ERROR) {
+            
             ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                            "[Content filter]: ngx_http_ct_output "
-                            "nginx next body filter returns error");
+                          "[Content filter]: ngx_http_ct_output "
+                          "nginx next body filter returns error");
             return NGX_ERROR;
+            
         }
+        
     }
     else
     {
         #if CONTF_DEBUG
+        
              ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: subs out buffer: not last return NGX_OK"
-                       );
+                            "[Content filter]: subs out buffer: "
+                            "not last return NGX_OK");
+              
         #endif
 
         return NGX_OK;
     }
 
-#if CONTF_DEBUG
-    for (cl = ctx->out; cl; cl = cl->next) {
-        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: subs out end: %p %uz", cl->buf, ngx_buf_size(cl->buf));
-    }
-#endif
+    
+    #if CONTF_DEBUG
+    
+        for (cl = ctx->out; cl; cl = cl->next) {
+            
+            ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                           "[Content filter]: subs out end: %p %uz", 
+                           cl->buf, ngx_buf_size(cl->buf));
+        }
+        
+    #endif
+    
 
 #if defined(nginx_version) && (nginx_version >= 1001004)
     ngx_chain_update_chains(r->pool, &ctx->free, &ctx->busy, &ctx->out,
@@ -885,14 +953,13 @@ ngx_http_ct_output(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx,
                             (ngx_buf_tag_t) &ngx_http_ct_filter_module);
 #endif
 
-    if (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ) {
+    if (ctx->last) {
         r->connection->buffered &= ~NGX_HTTP_SUB_BUFFERED;
     }
 
     return rc;
+    
 }
-
-
 
 
 #if (NGX_PCRE)
@@ -928,7 +995,8 @@ ngx_http_ct_create_conf(ngx_conf_t *cf)
     conf = ngx_pcalloc(cf->pool, sizeof(ngx_http_ct_loc_conf_t));
     if (conf == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                         "[Content filter]: Cannot allocate config memory");
+                           "[Content filter]: Cannot allocate "
+                           "config memory");
         return NGX_CONF_ERROR;
     }
 
@@ -959,19 +1027,21 @@ ngx_http_ct_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     if (ngx_http_merge_types(cf, &conf->types_keys, &conf->types,
                              &prev->types_keys, &prev->types,
-                             ngx_http_html_default_types)
-        != NGX_OK)
+                             ngx_http_html_default_types) != NGX_OK)
     {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                         "[Content filter]: ngx_http_ct_merge_conf cannot "
-                         "merge html types");
+                           "[Content filter]: "
+                           "ngx_http_ct_merge_conf cannot "
+                           "merge html types");
+                           
         return NGX_CONF_ERROR;
     }
 
     #if CONTF_DEBUG
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                         "[Content filter]: ngx_http_ct_merge_conf value of "
-                         "ngx_pagesize : %ui", ngx_pagesize);
+                           "[Content filter]: "
+                           "ngx_http_ct_merge_conf value of "
+                            "ngx_pagesize : %ui", ngx_pagesize);
     #endif
 
 
@@ -980,16 +1050,19 @@ ngx_http_ct_merge_conf(ngx_conf_t *cf, void *parent, void *child)
 
     /* Default total buffer size is 128k */
     ngx_conf_merge_bufs_value(conf->bufs, prev->bufs,
-                              (128 * 1024) / ngx_pagesize, ngx_pagesize);
+                             (128 * 1024) / ngx_pagesize, ngx_pagesize);
 
     #if CONTF_DEBUG
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                         "[Content filter]: ngx_http_ct_merge_conf  "
-                         "line buffer size : %uz", conf->line_buffer_size);
+                           "[Content filter]: "
+                           "ngx_http_ct_merge_conf  "
+                           "line buffer size : %uz", 
+                           conf->line_buffer_size);
+                           
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                         "[Content filter]: ngx_http_ct_merge_conf  "
-                         "buffer setting num: %i , size: %uz",
-                         conf->bufs.num, conf->bufs.size);
+                           "[Content filter]: ngx_http_ct_merge_conf "
+                           "buffer setting num: %i , size: %uz",
+                           conf->bufs.num, conf->bufs.size);
     #endif
 
 
@@ -1010,7 +1083,6 @@ ngx_http_ct_filter_init(ngx_conf_t *cf)
 }
 
 
-
 static char *
 ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 {
@@ -1023,7 +1095,8 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     #if !(NGX_PCRE)
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: Error PCRE library is required !");
+                           "[Content filter]: Error PCRE library "
+                           "is required !");
         return NGX_CONF_ERROR;
     #endif
 
@@ -1031,8 +1104,8 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (cf->args->nelts < 2){
 
        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: ngx_http_ct_filter invalid "
-                            "configuration arguments");
+                          "[Content filter]: ngx_http_ct_filter "
+                          "invalid configuration arguments");
        return NGX_CONF_ERROR;
     }
 
@@ -1040,22 +1113,27 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     value = cf->args->elts;
 
     if (slcf->blk_pairs == NULL) {
-        slcf->blk_pairs = ngx_array_create(cf->pool, 4, sizeof(blk_pair_t));
+        slcf->blk_pairs = ngx_array_create(cf->pool, 4, 
+                                           sizeof(blk_pair_t));                                           
         if (slcf->blk_pairs == NULL) {
             ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: ngx_http_ct_filter cannot allocate memory "
-                            " for blk_pairs");
+                               "[Content filter]: ngx_http_ct_filter "
+                                "cannot allocate memory for blk_pairs");
             return NGX_CONF_ERROR;
         }
+        
     }
 
     pair = ngx_array_push(slcf->blk_pairs);
     if (pair == NULL) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: ngx_http_ct_filter cannot allocate array"
-                            " for blk_pairs");
+                           "[Content filter]: ngx_http_ct_filter "
+                           "cannot allocate array"
+                           " for blk_pairs");
         return NGX_CONF_ERROR;
     }
+    
+    
     ngx_memzero(pair, sizeof(blk_pair_t));
 
 
@@ -1063,8 +1141,8 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if (n != 0) {
 
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "[Content filter]: ngx_http_ct_filter match part cannot"
-                               " contain variable");
+                           "[Content filter]: ngx_http_ct_filter "
+                           "match part cannot contain variable");
         return NGX_CONF_ERROR;
 
     } else {
@@ -1076,7 +1154,8 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
     if(n == NGX_ERROR || n <= 0)
     {
        ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: ngx_http_ct_filter invalid argument occurence");
+                          "[Content filter]: ngx_http_ct_filter "
+                          "invalid argument occurence");
        return NGX_CONF_ERROR;
     }
 
@@ -1085,7 +1164,8 @@ ngx_http_ct_filter( ngx_conf_t *cf, ngx_command_t *cmd, void *conf)
 
     if (ngx_http_ct_filter_regex_compile(pair, cf) == NGX_ERROR) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                            "[Content filter]: ngx_http_ct_filter cannot compile regex");
+                           "[Content filter]: ngx_http_ct_filter "
+                           "cannot compile regex");
         return NGX_CONF_ERROR;
     }
 
@@ -1106,7 +1186,7 @@ ngx_http_ct_filter_regex_compile(blk_pair_t *pair, ngx_conf_t *cf)
     err.len = NGX_MAX_CONF_ERRSTR;
     err.data = errstr;
 
-    //Always set to case insensitive matching
+    /* Always set to case insensitive matching */
     options =  NGX_REGEX_CASELESS;
 
 
@@ -1134,23 +1214,24 @@ ngx_http_ct_filter_regex_compile(blk_pair_t *pair, ngx_conf_t *cf)
     n = ngx_http_ct_regex_capture_count(pair->match_regex);
 
 
-    //Make sure that it doesn't exceed NGX_HTTP_MAX_CAPTURES
-    //although captures are not used for blocking
-    if(n > NGX_HTTP_MAX_CAPTURES)
-    {
+    /* Make sure that it doesn't exceed NGX_HTTP_MAX_CAPTURES */
+    if (n > NGX_HTTP_MAX_CAPTURES) {
         ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                               "[Content filter]: ngx_http_ct_filter_regex_compile "
-                               "You want to capture too many regex substrings, "
-                               "more than %i in \"%V\"",
-                               n, &pair->match);
-       return NGX_ERROR;
+                           "[Content filter]: "
+                           "ngx_http_ct_filter_regex_compile "
+                           "You want to capture too many regex "
+                           "substrings, more than %i in \"%V\"",
+                           n, &pair->match);
+        return NGX_ERROR;
     }
 
 
 #else
     ngx_conf_log_error(NGX_LOG_EMERG, cf, 0,
-                       "[Content filter]: ngx_http_ct_filter_regex_compile "
-                       "the using of the regex \"%V\" requires PCRE library",
+                       "[Content filter]: "
+                       "ngx_http_ct_filter_regex_compile "
+                       "the using of the regex \"%V\" requires "
+                       "PCRE library",
                        &pair->match);
 
     return NGX_ERROR;
@@ -1188,8 +1269,8 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
     #if (NGX_PCRE)
     src = ctx->line_in;
 
-    if(!ctx->matched)
-    {//this block will not run if sensitive content is already detected
+    if (!ctx->matched) {
+        /* don't run if sensitive content is already detected */
 
         pairs = (blk_pair_t *) ctx->blk_pairs->elts;
         for (i = 0; i < ctx->blk_pairs->nelts; i++) {
@@ -1203,16 +1284,16 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
                 /* regex matching */
 
                 pair->ncaptures = (NGX_HTTP_MAX_CAPTURES + 1) * 3;
-                pair->captures = ngx_pcalloc(r->pool, pair->ncaptures * sizeof(int));
+                pair->captures = ngx_pcalloc(r->pool, 
+                                         pair->ncaptures * sizeof(int));
 
-                count = ngx_regex_exec(pair->match_regex, &input, pair->captures, pair->ncaptures);
+                count = ngx_regex_exec(pair->match_regex, &input, 
+                                       pair->captures, pair->ncaptures);
                 if (count >= 0) {
                     /* Regex matches */
                     match_count += count;
 
-                    /*
-                      To track  previous matches pair->matched is used.
-                    */
+                    /* To track previous matches */
                     pair->matched++;
 
                     input.data = input.data + pair->captures[1];
@@ -1225,23 +1306,22 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
                     }
 
                 } else if (count == NGX_REGEX_NO_MATCHED) {
-                     //no match break out of while loop
+                     /* no match break out of while loop */
                      break;
 
                 } else {
 
-                    ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: ngx_http_ct_match"
-                                                        " regexec failed: %i", count);
+                    ngx_log_error(NGX_LOG_ERR, log, 0,  
+                                  "[Content filter]: ngx_http_ct_match"
+                                  " regexec failed: %i", count);
                     goto failed;
                 }
 
             }
 
 
-            if(ctx->matched)
-            {//one of the regex pair has matched
-             //exit the for loop
-              break;
+            if (ctx->matched) {
+                break;
             }
 
 
@@ -1251,17 +1331,21 @@ ngx_http_ct_match(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
 
 
     if (ngx_http_ct_out_chain_append(r, ctx,
-        ctx->line_in)!= NGX_OK) {
-            ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: "
-            "ngx_http_ct_match cannot append line to output buffer: %i", count);
-            goto failed;
-        }
+        ctx->line_in)!= NGX_OK) 
+    {
+            
+        ngx_log_error(NGX_LOG_ERR, log, 0,  "[Content filter]: "
+            "ngx_http_ct_match cannot append line to output buffer: %i", 
+            count);
+        goto failed;
+    }
 
 
     ngx_buffer_init(ctx->line_in);
 
     #if CONTF_DEBUG
-        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "[Content filter]: match counts: %i", match_count);
+        ngx_log_debug1(NGX_LOG_DEBUG_HTTP, log, 0, "[Content filter]: "
+                       "match counts: %i", match_count);
     #endif
 
     return match_count;
@@ -1275,101 +1359,113 @@ failed:
 }
 
 
-
 static ngx_int_t
-ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p, 
+ngx_http_ct_body_filter_getline_match(ngx_http_request_t *r, u_char *p,
 u_char *last, ngx_http_ct_ctx_t *ctx)
 {
     u_char          *linefeed;
     ngx_int_t       len, rc;
-    
-    
+
+
     while (p < last) {
 
         linefeed = memchr(p, LF, last - p);
 
         #if CONTF_DEBUG
-            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, "[Content filter]: find linefeed: %p",
+            ngx_log_debug1(NGX_LOG_DEBUG_HTTP, r->connection->log, 0, 
+                           "[Content filter]: find linefeed: %p",
                            linefeed);
         #endif
-        
-        
+
+
         if (linefeed) {
+            
             /* linefeed found */
             len = linefeed - p + 1;
 
-            if (buffer_append_string(ctx->line_in, p, len, r->pool) == NULL) {
+            if (buffer_append_string(ctx->line_in, p, len, r->pool) 
+                == NULL) 
+            {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "[Content filter]: ngx_http_ct_body_filter_getline_match"
-                        " cannot append to string buffer");
+                              "[Content filter]: "
+                              "ngx_http_ct_body_filter_getline_match"
+                              " cannot append to string buffer");
                 return NGX_ERROR;
             }
 
             p += len;
 
             rc = ngx_http_ct_match(r, ctx);
-            if (rc < 0) {
+            
+            if (rc < 0) 
+            {
                 ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                     "[Content filter]: ngx_http_ct_body_filter_getline_match"
-                     " regex matching for line fails");
+                              "[Content filter]: "
+                              "ngx_http_ct_body_filter_getline_match"
+                              " regex matching for line fails");
                 return NGX_ERROR;
             }
-            
-            
+
+
         }
         else {
-          /* no linefeed */  
-          
-          if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
-                    == NULL) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                    "[Content filter]: ngx_http_ct_body_filter_getline_match"
-                    " cannot append to string buffer");
-                return NGX_ERROR;
-          }  
-          
-          /* Exit while loop as the entire or remaining buffer no linefeed*/  
-          break;  
             
+          /* no linefeed */
+          if (buffer_append_string(ctx->line_in, p, last - p, r->pool)
+                    == NULL) 
+          {
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                    "[Content filter]: "
+                    "ngx_http_ct_body_filter_getline_match"
+                    " cannot append to string buffer");
+                    
+                return NGX_ERROR;
+          }
+
+          /* Exit while loop as remaining buffer no linefeed*/
+          break;
+
         }
 
     }
-    
 
-    if (linefeed == NULL && 
-        (ctx->last || ctx->contentsize > NGX_HTTP_CT_MAX_CONTENT_SZ)) {
-        
-        /* If it is last buffer or maximum content size and no linefeed */
-        
+
+    if (linefeed == NULL && ctx->last) {
+
+        /* last buffer and no linefeed */
         if (ngx_buf_size(ctx->line_in)) {
-            
+
             rc = ngx_http_ct_match(r, ctx);
-            if (rc < 0) {
-                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                     "[Content filter]: ngx_http_ct_body_filter_getline_match"
-                     " regex matching for line fails");
-                return NGX_ERROR;
-            }
             
+            if (rc < 0) {
+                
+                ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                              "[Content filter]: "
+                              "ngx_http_ct_body_filter_getline_match"
+                              " regex matching for line fails");
+                              
+                return NGX_ERROR;
+                
+            }
+
         }
-        
-    }    
-    
-     
+
+    }
+
     return NGX_OK;
-    
-    
+
 }
 
 
 static ngx_int_t
-ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
+ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, 
+                                       ngx_buf_t *b)
 {
     size_t               bufsz;
     u_char               *p, *last;
     ngx_int_t            rc;
     ngx_http_ct_ctx_t    *ctx;
-    
+
     rc = NGX_OK;
 
     ctx = ngx_http_get_module_ctx(r, ngx_http_ct_filter_module);
@@ -1380,92 +1476,95 @@ ngx_http_ct_body_filter_process_buffer(ngx_http_request_t *r, ngx_buf_t *b)
             " input buffer is null");
         return NGX_ERROR;
     }
-    
+
     bufsz = (size_t) ngx_buf_size(b);
-    
+
     p = b->pos;
     last = b->last;
-    b->pos = b->last; //buffer is consumed
+    b->pos = b->last; /* buffer is consumed */
 
     #if CONTF_DEBUG
+    
         ngx_log_debug4(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                       "[Content filter]: processing buffer: %p %uz, line_in buffer: %p %uz",
+                       "[Content filter]: processing buffer: "
+                       "%p %uz, line_in buffer: %p %uz",
                        b, last - p,
                        ctx->line_in, ngx_buf_size(ctx->line_in));
     #endif
-    
-    
+
+
     if (bufsz != 0) {
-        
+
         /* Input buffer is not zero */
-        
         rc = ngx_http_ct_body_filter_getline_match(r, p, last, ctx);
-        
+
     }
     else
     {
         /* Input buffer is zero */
-        
         if (ctx->last) {
-            
+
             #if CONTF_DEBUG
-            ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
-                           "[Content filter]: the last zero buffer, try to do substitution");
+                ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 
+                               0, "[Content filter]: "
+                        "the last zero buffer, try to do substitution");
             #endif
 
             /* Last buffer try to do a match if line_in is not empty */
             if (ngx_buf_size(ctx->line_in)) {
 
                 rc = ngx_http_ct_match(r, ctx);
-                if (rc < 0) {
+                
+                if (rc < 0) 
+                {
                     ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-                        "[Content filter]: ngx_http_ct_body_filter_process_buffer"
-                        " regex matching for line fails");
+                                  "[Content filter]: "
+                                "ngx_http_ct_body_filter_process_buffer"
+                                " regex matching for line fails");
+                                 
                     return NGX_ERROR;
                 }
 
             }
-            
+        
         }
-        
-        
+
+
     }
-    
-    
+
     return rc;
-    
+
 }
 
 
 /*
-Check if the content encoding is compressed using either
-gzip, deflate, compress or br (Brotli)
-Returns true if compression is enabled,
-false if it cannot determine compression
-*/
+ * Check if the content encoding is compressed using either
+ * gzip, deflate, compress or br (Brotli)
+ * Returns true if compression is enabled,
+ * false if it cannot determine compression
+ */ 
 static ngx_int_t
 ngx_test_ct_compression(ngx_http_request_t *r)
 {
     ngx_str_t tmp;
 
-    if(r->headers_out.content_encoding == NULL)
-    {//Cannot determine encoding, assume no compression
+    if (r->headers_out.content_encoding == NULL) {
+        /* Cannot determine encoding, assume no compression */
         return 0;
     }
 
-    if(r->headers_out.content_encoding->value.len == 0 )
-    {
+    if (r->headers_out.content_encoding->value.len == 0 ) {
         return 0;
     }
 
     tmp.len = r->headers_out.content_encoding->value.len;
     tmp.data = ngx_pcalloc(r->pool, sizeof(u_char) * tmp.len );
 
-    if(tmp.data == NULL)
-    {
+    if (tmp.data == NULL) {
+        
         ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
-            "[Content filter]: ngx_test_ct_compression "
-            "cannot allocate buffer for compression check");
+                      "[Content filter]: ngx_test_ct_compression "
+                      "cannot allocate buffer for compression check");
         return 0;
     }
 
@@ -1474,38 +1573,34 @@ ngx_test_ct_compression(ngx_http_request_t *r)
 
 
 
-    if( tmp.len >= (sizeof("gzip") -1) &&
-        ngx_strncmp(tmp.data, (u_char*)"gzip" , tmp.len) == 0 )
-    {
+    if (tmp.len >= (sizeof("gzip") -1) 
+        && ngx_strncmp(tmp.data, (u_char*)"gzip" , tmp.len) == 0) {
         return 1;
     }
 
-    if( tmp.len >= (sizeof("deflate") -1) &&
-        ngx_strncmp(tmp.data, (u_char*)"deflate" , tmp.len) == 0 )
-    {
+    if (tmp.len >= (sizeof("deflate") -1) 
+        && ngx_strncmp(tmp.data, (u_char*)"deflate" , tmp.len) == 0) {
         return 1;
     }
 
-    if( tmp.len >= (sizeof("compress") -1) &&
-        ngx_strncmp(tmp.data, (u_char*)"compress" , tmp.len) == 0 )
-    {
+    if (tmp.len >= (sizeof("compress") -1) 
+       && ngx_strncmp(tmp.data, (u_char*)"compress" , tmp.len) == 0) {
         return 1;
     }
 
 
-    if( tmp.len >= (sizeof("br") -1) &&
-        ngx_strncmp(tmp.data, (u_char*)"br" , tmp.len) == 0 )
-    {
+    if (tmp.len >= (sizeof("br") -1) 
+        && ngx_strncmp(tmp.data, (u_char*)"br" , tmp.len) == 0) {
         return 1;
     }
 
-    if( tmp.len >= (sizeof("identity") -1) &&
-        ngx_strncmp(tmp.data, (u_char*)"identity" , tmp.len) == 0 )
-    {
+    if (tmp.len >= (sizeof("identity") -1) 
+        && ngx_strncmp(tmp.data, (u_char*)"identity" , tmp.len) == 0) {
         return 0;
     }
 
 
-    //Fail safe to false if compression cannot be determined
+    /* Fail safe to false if compression cannot be determined*/
     return 0;
+    
 }
