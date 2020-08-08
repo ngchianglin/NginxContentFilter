@@ -644,7 +644,7 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
       ngx_memzero(b, sizeof(ngx_buf_t));
 
       b->tag = (ngx_buf_tag_t) &ngx_http_ct_filter_module;
-      b->memory = 1;
+      b->memory = 0;
       b->pos = empty_content;
       b->last = empty_content + (sizeof(u_char) * NGX_HTTP_CT_BUF_SIZE);
       b->start = b->pos;
@@ -661,6 +661,11 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
         b->last = empty_content + remainder;
         b->last_buf = (r == r->main) ? 1: 0;
         b->last_in_chain = 1;
+        
+        if (ngx_buf_size(b) == 0) {
+            b->sync = 1;
+        }
+        
       }
 
       *ll = cl;
