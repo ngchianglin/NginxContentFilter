@@ -533,13 +533,9 @@ ngx_http_ct_body_filter(ngx_http_request_t *r, ngx_chain_t *in)
             }
             
 
-            if (ngx_buf_size(ctx->out_buf) == 0) {
-                 ctx->out_buf->sync = 1;
-            }
-
             ctx->out_buf->last_buf = (r == r->main) ? 1 : 0;
             ctx->out_buf->last_in_chain = cl->buf->last_in_chain;
-            break;
+            
         }
 
 
@@ -644,7 +640,7 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
       ngx_memzero(b, sizeof(ngx_buf_t));
 
       b->tag = (ngx_buf_tag_t) &ngx_http_ct_filter_module;
-      b->memory = 0;
+      b->memory = 1;
       b->pos = empty_content;
       b->last = empty_content + (sizeof(u_char) * NGX_HTTP_CT_BUF_SIZE);
       b->start = b->pos;
@@ -658,13 +654,17 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
         * last iteration
         * Set the content size to remaining remainder 
         */
-        b->last = empty_content + remainder;
+        
+        if (remainder > 0 ) {
+            b->last = empty_content + remainder;
+        } else {
+            b->last = empty_content + 10; 
+        }
+        
+
         b->last_buf = (r == r->main) ? 1: 0;
         b->last_in_chain = 1;
         
-        if (ngx_buf_size(b) == 0) {
-            b->sync = 1;
-        }
         
       }
 
