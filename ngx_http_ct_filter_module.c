@@ -136,8 +136,9 @@ typedef struct {
     ngx_int_t      bufs;
 
     unsigned       last;
-    unsigned int    matched;
-    unsigned int    logonce;
+    unsigned int   matched;
+    unsigned int   logonce;
+    unsigned int   empty_sent; 
 
     /* output content size */
     off_t          contentsize;
@@ -590,9 +591,57 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
     u_char        *empty_content;
     size_t        i, quotient, remainder;
     ngx_buf_t     *b;
-    ngx_int_t     rc;
+    ngx_int_t     rc; 
     ngx_uint_t    content_length = 0;
     ngx_chain_t   *cl, **ll;
+    
+    
+    if (ctx->empty_sent) {
+        
+        rc = NGX_DONE;
+        
+    #if CONTF_DEBUG
+        ngx_log_debug0(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+                   "[Content filter]: "
+                   "ngx_http_ct_send_empty: Empty page already sent");
+    #endif
+         
+        if (ngx_http_ct_get_chain_buf(r, ctx) != NGX_OK) {
+            ngx_log_error(NGX_LOG_ERR, r->connection->log, 0,
+                 "[Content filter]: "
+                 "nngx_http_ct_send_empty "
+                 "cannot get buffer for ctx->out");
+            return NGX_ERROR;
+        }
+         
+        
+        ctx->out_buf->last_buf = (r == r->main) ? 1 : 0;
+        ctx->out_buf->last_in_chain = 1;
+        ctx->out_buf->sync = 1;
+        ctx->out_buf->flush = 1;
+        ctx->out_buf->temporary = 0;
+        ctx->out_buf->memory = 0;
+        ctx->out_buf->in_file = 0;
+            
+            
+    #if CONTF_DEBUG
+        ngx_log_debug2(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+        "[Content filter]: "
+        "ngx_http_ct_send_empty: send terminating buffer: s: %ui size: %ui", 
+        ngx_buf_special(ctx->out_buf), ngx_buf_size(ctx->out_buf));
+        
+    #endif
+    
+            
+        rc = ngx_http_next_body_filter(r, ctx->out);
+        ngx_chain_update_chains(r->pool, &ctx->free, &ctx->busy, &ctx->out,
+                                (ngx_buf_tag_t)&ngx_http_ct_filter_module);
+              
+              
+            
+
+        return rc;
+    }
 
 
     content_length = r->headers_out.content_length_n;
@@ -624,6 +673,14 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
            "unable to allocate empty content memory");
        return NGX_ERROR;
    }
+   
+   
+    #if CONTF_DEBUG
+        ngx_log_debug3(NGX_LOG_DEBUG_HTTP, r->connection->log, 0,
+            "[Content filter]: ngx_http_ct_send_empty: "
+            "content length: %ui quotient: %ui remainder: %ui", 
+            content_length, quotient, remainder);
+    #endif   
 
    ll = &ctx->out;
    for (i = 0; i < quotient; i++) {
@@ -676,6 +733,8 @@ ngx_http_ct_send_empty(ngx_http_request_t *r, ngx_http_ct_ctx_t *ctx)
   rc = ngx_http_next_body_filter(r, ctx->out);
   ngx_chain_update_chains(r->pool, &ctx->free, &ctx->busy, &ctx->out,
         (ngx_buf_tag_t)&ngx_http_ct_filter_module);
+        
+  ctx->empty_sent = 1;
 
   /* Send empty means no more output expected */
   r->connection->buffered &= ~NGX_HTTP_SUB_BUFFERED;
